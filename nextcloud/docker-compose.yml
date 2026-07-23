@@ -1,0 +1,77 @@
+# Nextcloud stack — mini-pc homelab.
+# Fronted by Caddy on the tailnet host (mini-pc.tailnet-name.ts.net) using
+# the Tailscale-issued cert; nextcloud binds loopback only. Secrets in
+# env/nextcloud.env (gitignored, chmod 600), all via env_file to dodge the
+# compose ${VAR} interpolation trap.
+services:
+  nextcloud-db:
+    container_name: nextcloud-db
+    image: mariadb:11
+    restart: unless-stopped
+    command: >-
+      --transaction-isolation=READ-COMMITTED
+      --log-bin=binlog --binlog-format=ROW
+    volumes:
+      - /mnt/general/nextcloud/db:/var/lib/mysql
+    env_file: [env/nextcloud.env]
+    environment:
+      MARIADB_AUTO_UPGRADE: "1"
+      MYSQL_DATABASE: nextcloud
+      MYSQL_USER: nextcloud
+    networks: [ncnet]
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  nextcloud-redis:
+    container_name: nextcloud-redis
+    image: redis:alpine
+    restart: unless-stopped
+    command: sh -c 'redis-server --requirepass "$$REDIS_PASSWORD"'
+    env_file: [env/nextcloud.env]
+    networks: [ncnet]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  nextcloud:
+    container_name: nextcloud
+    image: nextcloud:apache
+    restart: unless-stopped
+    depends_on:
+      nextcloud-db: { condition: service_healthy }
+      nextcloud-redis: { condition: service_healthy }
+    ports:
+      - "127.0.0.1:8080:80"
+    volumes:
+      - /mnt/general/nextcloud/data:/var/www/html
+    env_file: [env/nextcloud.env]
+    environment:
+      MYSQL_HOST: nextcloud-db
+      MYSQL_DATABASE: nextcloud
+      MYSQL_USER: nextcloud
+      REDIS_HOST: nextcloud-redis
+      OVERWRITEPROTOCOL: https
+      TRUSTED_PROXIES: 127.0.0.1/32
+    networks: [ncnet]
+
+  # Background jobs (official /cron.sh pattern) — runs cron.php every 5 min.
+  nextcloud-cron:
+    container_name: nextcloud-cron
+    image: nextcloud:apache
+    restart: unless-stopped
+    entrypoint: /cron.sh
+    depends_on:
+      nextcloud-db: { condition: service_healthy }
+      nextcloud-redis: { condition: service_healthy }
+    volumes:
+      - /mnt/general/nextcloud/data:/var/www/html
+    env_file: [env/nextcloud.env]
+    networks: [ncnet]
+
+networks:
+  ncnet: { driver: bridge }

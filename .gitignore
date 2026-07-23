@@ -1,0 +1,27 @@
+# Runtime data — bind-mount targets and stateful service storage. Belongs in
+# backups (T7), not version control.
+**/data/
+
+# Real env files (per T6 convention). Examples are tracked.
+**/env/*.env
+!**/env/*.env.example
+
+# Toolkit-server binary is rebuilt from the dev-box source tree, not a
+# versioned artifact of this repo.
+toolkit-server/bin/toolkit-server
+
+# OS / editor / dotfile noise
+.DS_Store
+*.swp
+*~
+
+# ── Excluded application deployments (task exclude-app-deployments-and-clean-tree) ──
+# These apps run on the box but are NOT part of the reproducible homelab infra;
+# each is tracked in its own repo. Kept here only as live deploy working copies.
+/campaign-settings/
+/campaign-settings-deploy/
+/dm-manager/
+
+# Stray campaign/app data DBs must never be committed to the infra repo.
+secrets-in-chicago-vtm.db
+*-vtm.db

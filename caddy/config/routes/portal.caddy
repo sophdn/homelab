@@ -1,0 +1,36 @@
+# portal-write-api routes — extend the existing site listener with
+# /portal/* and /chat/* paths that reverse-proxy to toolkit-server's
+# HTTP port. Toolkit-server itself does not authenticate; tailscale
+# identity at the network boundary is the auth gate.
+#
+# Imported alongside gitea.caddy and toolkit-server.caddy from the
+# `import /etc/caddy/routes/*.caddy` line in /etc/caddy/Caddyfile.
+# This route file applies to whatever site block does the importing —
+# in v1 it's reached via the existing mini-pc.local block
+# (LAN, with basicauth on the existing /api/*) AND via the
+# tailnet-bound block in /etc/caddy/Caddyfile (tailscale-only,
+# unauthed because tailscale gates the network).
+#
+# IMPORTANT: this file does NOT set basicauth. Authorization is
+# tailscale-side. Adding basicauth here would gate the portal
+# unnecessarily on the tailnet path AND break the bearer-fallback
+# stanza when/if the LAN-bound portal lands.
+
+# /portal/* — write endpoints (task_start, task_complete, bug_file,
+# admin/apply_recipe). Each is a thin adapter over toolkit-server's
+# meta-tool dispatch; HTTP status mapping is done in-process.
+handle /portal/* {
+    reverse_proxy 127.0.0.1:3001
+}
+
+# /chat/* — chat-relay surface. SSE buffering MUST be disabled or the
+# response is held in Caddy's buffer until the subprocess exits,
+# defeating the streaming UX. `flush_interval -1` flushes after every
+# write; `transport http` sets up the upstream connection.
+handle /chat/* {
+    reverse_proxy 127.0.0.1:3001 {
+        flush_interval -1
+        # SSE responses don't need request body buffering either.
+        request_buffers 0
+    }
+}

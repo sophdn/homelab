@@ -1,0 +1,4 @@
+# placeholder so env/ is tracked. jellyfin currently has no env_file
+# (config lives in /mnt/general/jellyfin-docker-config/config). If a
+# secret is added later, drop it here as jellyfin.env (gitignored) +
+# jellyfin.env.example (committed).

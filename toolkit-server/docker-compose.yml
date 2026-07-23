@@ -1,0 +1,49 @@
+services:
+  toolkit-server:
+    # Custom image with Node 22 + claude CLI baked in. Built from the
+    # sibling Dockerfile; rebuild via `docker compose build --no-cache`
+    # only when claude CLI or Node version bumps. Day-to-day binary
+    # updates ship via the bind-mount on `/usr/local/bin/toolkit-server`
+    # below.
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: toolkit-server:local
+    container_name: toolkit-server
+    restart: unless-stopped
+    # Non-root youruser user (uid 1000) inside the container; matches
+    # the host's `youruser` user so `~/.claude/.credentials.json` mount
+    # ownership stays clean.
+    user: "1000:1000"
+    ports:
+      - "127.0.0.1:3001:3001"
+    volumes:
+      # Bind-mount the freshly-shipped toolkit-server binary RO.
+      # Day-to-day updates: rebuild on the dev box, scp the binary
+      # into bin/, then `docker compose restart toolkit-server`. No
+      # image rebuild needed.
+      - ./bin/toolkit-server:/usr/local/bin/toolkit-server:ro
+      - ./data:/data
+      # OAuth credentials inherited by every spawned `claude` subprocess.
+      # Read-only — the running container never writes here. The
+      # credentials belong to the host `youruser` user; the container's
+      # matching uid makes the mount readable without permission surgery.
+      - /home/youruser/.claude/.credentials.json:/home/youruser/.claude/.credentials.json:ro
+      # claude reads + writes scratch state under ~/.claude/projects/.
+      # The container manages its own copy (separate from the host's
+      # claude state) so chat sessions don't pollute the host's Claude
+      # Code working memory. Anonymous volume — wiped on container
+      # recreate, which is fine for ephemeral chat-session state.
+      - claude-runtime:/home/youruser/.claude/projects
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    command:
+      - /usr/local/bin/toolkit-server
+      - --db
+      - /data/toolkit.db
+      - --http-port
+      - "3001"
+      - --http-only
+
+volumes:
+  claude-runtime:

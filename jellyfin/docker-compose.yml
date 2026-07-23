@@ -1,0 +1,12 @@
+services:
+  jellyfin:
+    container_name: jellyfin
+    image: jellyfin/jellyfin:latest
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      JELLYFIN_PublishedServerUrl: "http://localhost"
+    volumes:
+      - /mnt/general/jellyfin-docker-config/config:/config
+      - /mnt/general/jellyfin-docker-config/cache:/cache
+      - /mnt/jellyfin:/media

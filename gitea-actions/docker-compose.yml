@@ -1,0 +1,50 @@
+# Gitea Actions runner (act_runner) — CI for the Gitea instance.
+#
+# Promoted from a bare `docker run` (started 2026-05-07) into this tracked
+# Compose stack so the repo reproducibly describes CI. Behaviour is identical
+# to the previous bare container:
+#   - image gitea/act_runner:latest
+#   - joins the gitea stack network (gitea_default) so it can reach Gitea
+#   - config.yaml + caddy-internal-root.crt are now sourced from THIS dir
+#     (config-as-code) instead of root-owned /etc/act_runner/
+#   - the runner's registration token lives in the EXTERNAL act_runner_data
+#     volume (persisted /data/.runner), NOT in this repo — so recreating the
+#     container keeps the existing registration.
+#
+# Fresh-box bring-up + (re)registration steps: see ./README.md and the repo
+# root RUNBOOK.
+services:
+  act_runner:
+    image: gitea/act_runner:latest
+    container_name: act_runner
+    restart: unless-stopped
+    # Without this, run.sh omits --config and the daemon ignores the
+    # mounted config.yaml (jobs then run on an isolated per-job network
+    # where the gitea host name does not resolve → checkout fails).
+    environment:
+      - CONFIG_FILE=/etc/act_runner/config.yaml
+    networks:
+      - gitea_default
+    volumes:
+      # Registration state (.runner) — external so it survives recreates and
+      # is shared with the historical bare-run container's volume.
+      - act_runner_data:/data
+      # Config-as-code: runner config + the Caddy internal-CA root cert used
+      # for TLS trust to the local Gitea behind Caddy.
+      - ./config.yaml:/etc/act_runner/config.yaml:ro
+      - ./caddy-internal-root.crt:/etc/act_runner/caddy-internal-root.crt:ro
+      # Docker-out-of-Docker: the runner spawns sibling job containers on the
+      # host daemon.
+      - /var/run/docker.sock:/var/run/docker.sock
+
+volumes:
+  # Pre-existing named volume holding the runner registration. Declared
+  # external so Compose reuses it rather than creating gitea-actions_act_runner_data.
+  act_runner_data:
+    external: true
+
+networks:
+  # The gitea stack's default network (project `gitea`). Declared external so
+  # the runner shares it rather than creating an isolated one.
+  gitea_default:
+    external: true

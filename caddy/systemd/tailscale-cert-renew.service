@@ -1,0 +1,8 @@
+[Unit]
+Description=Renew Tailscale TLS cert for Nextcloud and reload Caddy
+After=tailscaled.service docker.service
+Wants=tailscaled.service
+
+[Service]
+Type=oneshot
+ExecStart=/home/youruser/homelab/caddy/tailscale-cert-renew.sh

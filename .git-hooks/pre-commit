@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# pre-commit — block commits with unescaped $ patterns in staged *.env files.
+#
+# Docker Compose v2 applies $VAR / ${VAR} substitution to values loaded
+# from env_file: at parse time. A literal $ immediately followed by a
+# letter, underscore, or { is interpreted as a variable reference; if
+# the named variable does not exist (the common case), Compose
+# substitutes a blank string and emits a warning. The value reaches the
+# container truncated. Bcrypt hashes ($2a$14$...) and any secret with
+# alphanumeric-following $ chars are the typical victims.
+#
+# Fix: escape literal $ as $$ in env_file values. Compose substitutes
+# $$ -> $ before passing to the container.
+#
+# Closes structural recurrence guard for bug
+# `compose-env-file-dollar-substitution-truncates-bcrypt`.
+#
+# Install (symlinked so edits stay in sync with the repo):
+#   ln -sf ../../.git-hooks/pre-commit .git/hooks/pre-commit
+set -euo pipefail
+fail=0
+while IFS= read -r f; do
+  [[ "$f" == *.env ]] || continue
+  [[ -f "$f" ]] || continue
+  awk -v file="$f" '
+    /^[[:space:]]*#/ {next}
+    /^[[:space:]]*$/ {next}
+    {
+      line=$0; sub(/^[^=]*=/, "", line)
+      n=length(line); i=1
+      while (i<=n) {
+        c=substr(line,i,1)
+        if (c=="$") {
+          nx=substr(line,i+1,1)
+          if (nx=="$") { i+=2; continue }
+          if (nx ~ /[A-Za-z_{]/) {
+            printf "%s:%d: unescaped $%s -- escape as $$%s for compose env_file\n", \
+              file, NR, nx, nx > "/dev/stderr"
+            exit 1
+          }
+          i+=2; continue
+        }
+        i++
+      }
+    }
+  ' "$f" || fail=1
+done < <(git diff --cached --name-only --diff-filter=ACMR)
+if [ "$fail" -ne 0 ]; then
+  echo "[pre-commit] env_file $ escape check failed -- commit aborted." >&2
+  echo "[pre-commit] If the value is genuinely meant to substitute a variable, allow it through with --no-verify (deliberate use only)." >&2
+  exit 1
+fi
+exit 0

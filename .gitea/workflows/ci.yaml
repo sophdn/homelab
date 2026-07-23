@@ -1,0 +1,64 @@
+# homelab CI — runs in Gitea Actions on push + pull-request.
+#
+# The Gitea runner (node:22-bookworm) has no docker, so this gate is the
+# lightweight half — shellcheck over the tracked scripts. The FULL validation
+# (docker compose config + yamllint), which needs docker, runs on the public
+# GitHub mirror via .github/workflows/validate.yml (GitHub Actions has docker).
+#
+# On a green push to main, mirror-publish scrubs + force-pushes the public mirror.
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: trust the checkout (git safe.directory)
+        run: git config --global --add safe.directory '*'
+
+      - name: install shellcheck
+        run: apt-get update && apt-get install -y --no-install-recommends shellcheck
+
+      - name: shellcheck (tracked scripts + hook + pipeline)
+        run: |
+          shellcheck \
+            restic/scripts/backup.sh \
+            caddy/tailscale-cert-renew.sh \
+            .git-hooks/pre-commit \
+            ci/validate.sh \
+            scripts/publish-public.sh \
+            scripts/secret-scan-tree.sh
+
+  # ── mirror-publish (chain 438) ─────────────────────────────────────────────
+  # Scrubbed, squashed snapshot of main → the public GitHub mirror on every green
+  # push to main. Option B: the private repo keeps the real runbook; publish-
+  # public.sh applies .publish-scrub-map and fail-closed-verifies against
+  # .pii-denylist before the tree is committed.
+  mirror-publish:
+    needs: [validate]
+    if: gitea.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: trust the checkout (git safe.directory)
+        run: git config --global --add safe.directory '*'
+
+      - name: Scrub, secret-scan, force-push public mirror
+        env:
+          MIRROR_TOKEN: ${{ secrets.MIRROR_GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          OUT="$(mktemp -d)/mirror"
+          bash scripts/publish-public.sh --repo . --out "$OUT"   # scrub HEAD → squashed tree
+          bash scripts/secret-scan-tree.sh "$OUT"                # fail-closed: abort if any secret
+          git -C "$OUT" push --force \
+            "https://x-access-token:${MIRROR_TOKEN}@github.com/sophdn/homelab.git" \
+            HEAD:main

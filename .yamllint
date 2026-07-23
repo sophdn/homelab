@@ -1,0 +1,16 @@
+# Parseability-focused config: catch structural/syntax errors (bad indentation
+# that changes meaning, duplicate keys, unparseable YAML) while ignoring
+# cosmetic style. The CI gate proves every stack *parses*, not that it matches
+# a house style.
+extends: relaxed
+
+rules:
+  line-length: disable
+  comments: disable
+  comments-indentation: disable
+  document-start: disable
+  truthy: disable
+  trailing-spaces: disable
+  empty-lines: disable
+  new-line-at-end-of-file: disable
+  key-duplicates: enable

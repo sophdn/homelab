@@ -1,0 +1,78 @@
+{
+    auto_https disable_redirects
+}
+
+mini-pc.local {
+    tls internal
+
+    handle /healthz {
+        respond "ok" 200
+    }
+
+    # Import only the LAN-safe routes explicitly. portal.caddy (/portal/* +
+    # /chat/* → toolkit-server, UNAUTHENTICATED by design — auth is meant to be
+    # the tailscale network boundary) is deliberately NOT imported here: this
+    # `.local` block is LAN-bound, not tailnet-bound, so importing it would expose
+    # an unauthenticated write path to the ledger on the local network. portal.caddy
+    # is imported ONLY by the tailnet-bound portal block (commented out below) once
+    # that is wired live. (Was `import routes/*.caddy`, which pulled in portal.caddy.)
+    import /etc/caddy/routes/gitea.caddy
+    import /etc/caddy/routes/toolkit-server.caddy
+
+    handle {
+        respond 404
+    }
+}
+
+# portal-write-api — tailnet-bound site for the HTTP write + chat
+# surface. Lives in its own site block so the listener binds only to
+# the tailscale interface (`bind tailscale0`); LAN clients that don't
+# resolve the tailnet hostname can never reach it. Tailscale ACLs
+# split portal-readers (GET-only) from portal-writers (POST + chat) —
+# see `~/homelab/tailscale/acl.json` for the canonical JSON to paste
+# into the tailscale admin console.
+#
+# `{$TAILNET_PORTAL_HOST}` is the tailnet hostname for this device,
+# substituted at parse time from `caddy/env/caddy.env`. Typically
+# something like `mini-pc.tail-XXXXX.ts.net`. Set the env var on the
+# mini-PC; the Caddyfile won't load until it's defined.
+#
+# `tls internal` issues a Caddy-CA cert; clients on the tailnet must
+# trust the CA (same as the existing mini-pc.local block). The
+# tailscale-managed cert plugin is a v1.5 cleanup — out of scope here
+# to keep the Caddy + tailscale boundary cleanly separated.
+# DEFERRED (not wired live): the portal-write-api site block below is commented
+# out — it needs TAILNET_PORTAL_HOST set AND a tailnet hostname distinct from this
+# host's (it would otherwise clash with the gitea/nextcloud block). Uncomment and
+# configure when the portal is actually deployed. See commit f3a3eff.
+# {$TAILNET_PORTAL_HOST} {
+#     bind tailscale0
+#     tls internal
+#
+#     handle /healthz {
+#         respond "ok" 200
+#     }
+#
+#     import /etc/caddy/routes/portal.caddy
+#
+#     handle {
+#         respond 404
+#     }
+# }
+
+# Nextcloud — fronted on the tailnet hostname using the Tailscale-issued cert.
+# Cert files are refreshed by tailscale-cert-renew.timer (weekly) + caddy reload.
+mini-pc.tailnet-name.ts.net {
+	tls /tailscale-certs/mini-pc.tailnet-name.ts.net.crt /tailscale-certs/mini-pc.tailnet-name.ts.net.key
+	header Strict-Transport-Security "max-age=15552000; includeSubDomains"
+	# Gitea — same /git/ subpath + handle_path strip as the LAN block
+	# (config/routes/gitea.caddy), reusing this host's Tailscale cert.
+	handle_path /git/* {
+		reverse_proxy 127.0.0.1:3000
+	}
+
+	# Nextcloud at the root.
+	handle {
+		reverse_proxy 127.0.0.1:8080
+	}
+}
