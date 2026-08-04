@@ -1,0 +1,23 @@
+services:
+  gitea:
+    image: gitea/gitea:1.21
+    container_name: gitea
+    restart: unless-stopped
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+      - GITEA__server__DOMAIN=mini-pc.tailnet-name.ts.net
+      - GITEA__server__ROOT_URL=https://mini-pc.tailnet-name.ts.net/git/
+      - GITEA__server__HTTP_PORT=3000
+      - GITEA__server__SSH_DOMAIN=mini-pc.tailnet-name.ts.net
+      - GITEA__server__DISABLE_SSH=true
+      - GITEA__service__DISABLE_REGISTRATION=true
+      - GITEA__service__REQUIRE_SIGNIN_VIEW=true
+      - GITEA__database__DB_TYPE=sqlite3
+    volumes:
+      - ./data:/data
+      - ./config:/etc/gitea
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "127.0.0.1:3000:3000"

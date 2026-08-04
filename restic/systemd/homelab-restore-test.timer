@@ -1,0 +1,15 @@
+[Unit]
+Description=Run the restic restore verification weekly (Sun 05:30 local)
+
+[Timer]
+# After the 03:00 nightly backup and after campaign-db-restore-test at 04:30,
+# so the three never overlap on a single-NVMe box and the snapshot under test
+# is that night's.
+OnCalendar=Sun *-*-* 05:30:00
+RandomizedDelaySec=10min
+# Catch up after downtime: a box that was off on Sunday should still verify
+# rather than silently wait a week.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

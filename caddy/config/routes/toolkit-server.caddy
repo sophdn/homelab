@@ -1,0 +1,14 @@
+# /dashboard/* route removed 2026-05-07: it was an auth bypass.
+# handle_path strips the prefix and reverse_proxies to toolkit-server,
+# and the block had no basicauth directive — so /dashboard/<api-path>
+# was reaching toolkit-server unauthenticated. Vault decision
+# `toolkit-cwd-binding-and-deployed-vs-stdio-split` already records
+# that the deployed instance is HTTP-API-only by design (no SPA was
+# ever shipped at /dashboard/). When/if a dashboard ships, restore the
+# block WITH a basicauth directive identical to /api below.
+handle_path /api/* {
+    basicauth {
+        claude {$BASIC_AUTH_HASH_CLAUDE}
+    }
+    reverse_proxy 127.0.0.1:3001
+}

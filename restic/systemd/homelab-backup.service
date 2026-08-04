@@ -1,0 +1,13 @@
+[Unit]
+Description=homelab restic backup
+Documentation=file:/home/youruser/homelab/restic/scripts/backup.sh
+Wants=homelab-backup.timer
+
+[Service]
+Type=oneshot
+# Run as root: bind-mounted data files (nextcloud_db's mariadb data,
+# gitea's writeables, caddy's TLS state) are container-written and not
+# all readable by `youruser`. Live-DB consistency risk acknowledged in
+# README BACKUP section + filed as follow-up bug.
+User=root
+ExecStart=/home/youruser/homelab/restic/scripts/backup.sh

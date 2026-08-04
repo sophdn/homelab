@@ -1,0 +1,13 @@
+[Unit]
+Description=Poll the homelab host's health and file findings as bugs in the work ledger
+
+[Service]
+Type=oneshot
+# Runs on the OBSERVER, not on the monitored host. That is the entire design:
+# a box cannot report its own death, so the thing raising the alarm must not
+# share fate with the thing being watched. See monitoring/README.md.
+#
+# No leading '-': a missing config FAILS the unit rather than silently
+# monitoring nothing.
+EnvironmentFile=%h/.config/homelab-monitor/monitor.env
+ExecStart=%h/dev/homelab/monitoring/scripts/poll-and-file.sh
