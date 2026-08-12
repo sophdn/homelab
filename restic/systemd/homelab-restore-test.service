@@ -1,0 +1,19 @@
+[Unit]
+Description=Verify the restic backup by restoring a random sample and byte-comparing it
+Documentation=file:/home/youruser/homelab/restic/scripts/restore-test.sh
+# Never race the nightly backup: a restore-test reading the repo mid-prune
+# would report failures that are an artifact of the timing, not the backup.
+After=homelab-backup.service
+Conflicts=homelab-backup.service
+
+[Service]
+Type=oneshot
+# Root for the same reason homelab-backup.service runs as root: the backup set
+# includes container-written files this user cannot otherwise read, and the
+# byte comparison has to read the live copies.
+User=root
+ExecStart=/home/youruser/homelab/restic/scripts/restore-test.sh
+# The script's own exit codes carry the diagnosis (5 no snapshot, 6 stale,
+# 7 integrity, 9 mismatch, 10 nothing compared). Leave them intact so
+# `systemctl status` shows which failure happened.
+SuccessExitStatus=0

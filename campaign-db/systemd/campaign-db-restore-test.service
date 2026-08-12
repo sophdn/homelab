@@ -1,0 +1,11 @@
+[Unit]
+Description=campaign-settings Postgres restore test (restore newest dump to a throwaway DB and verify)
+Documentation=file:/home/youruser/homelab/campaign-db/scripts/restore-test.sh
+Wants=campaign-db-restore-test.timer
+
+[Service]
+Type=oneshot
+# root to match homelab-backup.service: the dumps are written by that unit
+# (root) and this reads them. Postgres itself is reached via `docker exec`.
+User=root
+ExecStart=/home/youruser/homelab/campaign-db/scripts/restore-test.sh

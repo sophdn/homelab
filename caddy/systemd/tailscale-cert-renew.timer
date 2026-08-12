@@ -1,0 +1,10 @@
+[Unit]
+Description=Weekly Tailscale cert renewal + Caddy reload
+
+[Timer]
+OnCalendar=Sun 04:00
+RandomizedDelaySec=30min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

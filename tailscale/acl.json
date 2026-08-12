@@ -1,0 +1,83 @@
+// Tailscale ACL — paste this into the tailscale admin console at
+// https://login.tailscale.com/admin/acls.
+//
+// Two groups split the portal's access:
+// - portal-readers: GET-only access (the existing observe-server read
+//   endpoints, surfaced under /portal/* read paths if/when they land).
+// - portal-writers: POST + chat (everything in /portal/* + /chat/*).
+//
+// v1 puts only the user's primary identity in both groups. Future
+// device-specific identities (e.g. a phone-only login) can land in
+// portal-readers without granting them write access.
+//
+// Tailscale ACL files use HuJSON — JSON with `//` line comments
+// allowed. The admin console parses both. The brace structure here
+// matches their canonical example.
+//
+// IMPORTANT: any group / tag / hostname / port reference here must
+// match what's in your tailnet. The placeholders below assume:
+// - your primary tailscale identity is `sophdn@github`
+// - the mini-PC's tailscale device name is `mini-pc`
+// - portal HTTPS lands on port 443 on the mini-PC's tailnet IP
+//   (Caddy binds tailscale0 + serves HTTPS via tls-internal)
+// Edit before pasting if any of those don't match.
+
+{
+	"groups": {
+		"group:portal-readers": ["sophdn@github"],
+		"group:portal-writers": ["sophdn@github"],
+	},
+
+	"tagOwners": {
+		"tag:portal": ["sophdn@github"],
+	},
+
+	"acls": [
+		// Default-deny-all comes from omitting any wildcard ACLs;
+		// only the rules below permit traffic. Tailscale's default
+		// behaviour without ACLs is `allow all` — set this file to
+		// override that and confine portal traffic to declared groups.
+
+		// portal-writers can hit any port on the mini-PC. Coarse but
+		// matches the v1 design — a single user identity is in both
+		// groups so finer port-splitting buys nothing.
+		{
+			"action": "accept",
+			"src":    ["group:portal-writers"],
+			"dst":    ["mini-pc:443"],
+		},
+
+		// portal-readers get the same port today. When read-only
+		// device identities land (e.g. a phone bookmark for the
+		// dashboard), this rule stays permissive but the group
+		// membership above narrows.
+		{
+			"action": "accept",
+			"src":    ["group:portal-readers"],
+			"dst":    ["mini-pc:443"],
+		},
+
+		// Existing tailnet traffic stays open between the user's own
+		// devices for non-portal use (SSH, file transfer, etc.).
+		// Without this, paste-replacing the default ACL would cut
+		// off everyday tailnet ergonomics.
+		{
+			"action": "accept",
+			"src":    ["sophdn@github"],
+			"dst":    ["sophdn@github:*"],
+		},
+	],
+
+	"ssh": [
+		// Preserve the default user-can-SSH-to-own-devices rule. The
+		// tailscale admin console's stock template includes this; if
+		// you don't have an existing custom SSH ACL, this restores
+		// the default after the paste.
+		{
+			"action": "accept",
+			"src":    ["autogroup:member"],
+			"dst":    ["autogroup:self"],
+			"users":  ["autogroup:nonroot", "root"],
+		},
+	],
+}

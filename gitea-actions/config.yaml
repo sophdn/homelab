@@ -1,0 +1,24 @@
+log:
+  level: info
+
+runner:
+  file: /data/.runner
+  capacity: 1
+  # Targeted CA trust for TLS to https://mini-pc.local (Caddy
+  # internal CA). Replaces the previous NODE_TLS_REJECT_UNAUTHORIZED=0
+  # blanket-disable. Node reads NODE_EXTRA_CA_CERTS and adds the
+  # listed file to its trust store; non-Node TLS clients in the job
+  # container would still need their own trust handling, but the
+  # artifact uploader is Node so this is sufficient today.
+  envs:
+    NODE_EXTRA_CA_CERTS: /etc/caddy-internal-root.crt
+
+container:
+  network: gitea_default
+  # Mount the CA cert read-only into each job container at the path
+  # NODE_EXTRA_CA_CERTS expects.
+  options: "-v /etc/act_runner/caddy-internal-root.crt:/etc/caddy-internal-root.crt:ro"
+  # act_runner rejects host-path bind mounts by default; allowlist the
+  # cert path explicitly so the volume above takes effect.
+  valid_volumes:
+    - /etc/act_runner/caddy-internal-root.crt

@@ -1,0 +1,14 @@
+services:
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: caddy
+    restart: unless-stopped
+    network_mode: host
+    env_file:
+      - env/caddy.env
+    volumes:
+      - ./config:/etc/caddy:ro
+      - ./data:/data
+      - /var/lib/tailscale/certs:/tailscale-certs:ro   # Tailscale-issued cert for the ts.net host
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro

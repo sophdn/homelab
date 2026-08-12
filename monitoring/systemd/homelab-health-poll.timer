@@ -1,0 +1,14 @@
+[Unit]
+Description=Poll homelab health hourly
+
+[Timer]
+OnCalendar=hourly
+RandomizedDelaySec=5min
+# The observer is a workstation and is not always on. Persistent=true runs a
+# missed poll at next boot, so findings surface when work resumes rather than
+# being lost. That is also why hourly is fine: this is not a pager, it is a
+# check that runs whenever the observer is alive.
+Persistent=true
+
+[Install]
+WantedBy=timers.target
